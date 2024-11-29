@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -10,23 +11,35 @@ import (
 )
 
 func main() {
-	inputFile := "assets/test_config.properties"
-	outputFile := "test_config.yml"
+	flag.Usage = func() {
+		fmt.Println("Usage: pml -input=input.properties -output=output.yml")
+		flag.PrintDefaults()
+	}
 
-	properties, err := readProperties(inputFile)
+	inputFile := flag.String("input", "", "Path to the input .properties file (required)")
+	outputFile := flag.String("output", "", "Path to the output .yml file (required)")
+	flag.Parse()
+
+	if *inputFile == "" || *outputFile == "" {
+		fmt.Println("Error: Both -input and -output flags must be specified.")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	properties, err := readProperties(*inputFile)
 	if err != nil {
-		fmt.Printf("Fehler beim Lesen der Datei: %v\n", err)
-		return
+		fmt.Printf("Error reading file %s: %v\n", *inputFile, err)
+		os.Exit(1)
 	}
 
 	nestedMap := createNestedMap(properties)
 
-	if err := writeYAMLWithSpaces(nestedMap, outputFile); err != nil {
-		fmt.Printf("Fehler beim Schreiben der YAML-Datei: %v\n", err)
-		return
+	if err := writeYAMLWithSpaces(nestedMap, *outputFile); err != nil {
+		fmt.Printf("Error writing YAML file %s: %v\n", *outputFile, err)
+		os.Exit(1)
 	}
 
-	fmt.Printf("Konvertierung abgeschlossen: %s -> %s\n", inputFile, outputFile)
+	fmt.Printf("Conversion complete: %s -> %s\n", *inputFile, *outputFile)
 }
 
 func readProperties(filename string) (map[string]string, error) {
@@ -34,7 +47,12 @@ func readProperties(filename string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(file)
 
 	properties := make(map[string]string)
 	scanner := bufio.NewScanner(file)
@@ -90,10 +108,20 @@ func writeYAMLWithSpaces(data map[string]interface{}, filename string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(file)
 
 	encoder := yaml.NewEncoder(file)
-	defer encoder.Close()
+	defer func(encoder *yaml.Encoder) {
+		err := encoder.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(encoder)
 
 	encoder.SetIndent(2)
 
