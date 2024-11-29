@@ -12,34 +12,58 @@ import (
 
 func main() {
 	flag.Usage = func() {
-		fmt.Println("Usage: pml -i=input.properties -i=output.yml")
+		fmt.Println("Usage: pml -i=input.file -o=output.file -f=format")
 		flag.PrintDefaults()
 	}
 
-	inputFile := flag.String("i", "", "Path to the input .properties file (required)")
-	outputFile := flag.String("o", "", "Path to the output .yml file (required)")
+	inputFile := flag.String("i", "", "Path to the input file (required)")
+	outputFile := flag.String("o", "", "Path to the output file (required)")
 	flag.Parse()
 
 	if *inputFile == "" || *outputFile == "" {
-		fmt.Println("Error: Both -input and -output flags must be specified.")
+		fmt.Println("Error: -i and -o flags must be specified.")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	properties, err := readProperties(*inputFile)
-	if err != nil {
-		fmt.Printf("Error reading file %s: %v\n", *inputFile, err)
+	// Determine file extension and proceed accordingly
+	if strings.HasSuffix(*inputFile, ".properties") {
+		properties, err := readProperties(*inputFile)
+		if err != nil {
+			fmt.Printf("Error reading properties file %s: %v\n", *inputFile, err)
+			os.Exit(1)
+		}
+
+		nestedMap := createNestedMap(properties)
+
+		if err := writeYAMLWithSpaces(nestedMap, *outputFile); err != nil {
+			fmt.Printf("Error writing YAML file %s: %v\n", *outputFile, err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Conversion complete: %s -> %s\n", *inputFile, *outputFile)
+
+	} else if strings.HasSuffix(*inputFile, ".yml") || strings.HasSuffix(*inputFile, ".yaml") {
+		nestedMap, err := readYAML(*inputFile)
+		if err != nil {
+			fmt.Printf("Error reading YAML file %s: %v\n", *inputFile, err)
+			os.Exit(1)
+		}
+
+		properties := flattenYAML(nestedMap)
+
+		if err := writeProperties(properties, *outputFile); err != nil {
+			fmt.Printf("Error writing .properties file %s: %v\n", *outputFile, err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Conversion complete: %s -> %s\n", *inputFile, *outputFile)
+
+	} else {
+		fmt.Println("Error: Invalid file type. Please provide a .properties or .yml/.yaml file.")
+		flag.Usage()
 		os.Exit(1)
 	}
-
-	nestedMap := createNestedMap(properties)
-
-	if err := writeYAMLWithSpaces(nestedMap, *outputFile); err != nil {
-		fmt.Printf("Error writing YAML file %s: %v\n", *outputFile, err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Conversion complete: %s -> %s\n", *inputFile, *outputFile)
 }
 
 func readProperties(filename string) (map[string]string, error) {
@@ -47,12 +71,7 @@ func readProperties(filename string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(file)
+	defer file.Close()
 
 	properties := make(map[string]string)
 	scanner := bufio.NewScanner(file)
@@ -108,20 +127,10 @@ func writeYAMLWithSpaces(data map[string]interface{}, filename string) error {
 	if err != nil {
 		return err
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(file)
+	defer file.Close()
 
 	encoder := yaml.NewEncoder(file)
-	defer func(encoder *yaml.Encoder) {
-		err := encoder.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(encoder)
+	defer encoder.Close()
 
 	encoder.SetIndent(2)
 
@@ -130,4 +139,56 @@ func writeYAMLWithSpaces(data map[string]interface{}, filename string) error {
 	}
 
 	return nil
+}
+
+func readYAML(filename string) (map[string]interface{}, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var data map[string]interface{}
+	decoder := yaml.NewDecoder(file)
+	if err := decoder.Decode(&data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func flattenYAML(nestedMap map[string]interface{}) map[string]string {
+	properties := make(map[string]string)
+	flattenMap("", nestedMap, properties)
+	return properties
+}
+
+func flattenMap(prefix string, m map[string]interface{}, properties map[string]string) {
+	for key, value := range m {
+		newKey := prefix + key
+		if subMap, ok := value.(map[string]interface{}); ok {
+			flattenMap(newKey+".", subMap, properties)
+		} else {
+			properties[newKey] = fmt.Sprintf("%v", value)
+		}
+	}
+}
+
+func writeProperties(properties map[string]string, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+
+	for key, value := range properties {
+		line := fmt.Sprintf("%s=%s\n", key, value)
+		if _, err := writer.WriteString(line); err != nil {
+			return err
+		}
+	}
+
+	return writer.Flush()
 }
