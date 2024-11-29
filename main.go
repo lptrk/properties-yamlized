@@ -12,12 +12,12 @@ import (
 
 func main() {
 	flag.Usage = func() {
-		fmt.Println("Usage: pml -input=input.properties -output=output.yml")
+		fmt.Println("Usage: pml -i=input.properties -i=output.yml")
 		flag.PrintDefaults()
 	}
 
-	inputFile := flag.String("input", "", "Path to the input .properties file (required)")
-	outputFile := flag.String("output", "", "Path to the output .yml file (required)")
+	inputFile := flag.String("i", "", "Path to the input .properties file (required)")
+	outputFile := flag.String("o", "", "Path to the output .yml file (required)")
 	flag.Parse()
 
 	if *inputFile == "" || *outputFile == "" {
