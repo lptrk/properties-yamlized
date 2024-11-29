@@ -11,6 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const version = "0.1.1"
+
 func main() {
 	flag.Usage = func() {
 		fmt.Println("Usage: pml -i=input.file -o=output.file -f=format")
@@ -21,14 +23,13 @@ func main() {
 	outputFile := flag.String("o", "", "Path to the output file (required)")
 	flag.Parse()
 
-	if *inputFile == "" || *outputFile == "" {
-		fmt.Println("Error: -i and -o flags must be specified.")
+	if *inputFile == "" {
+		fmt.Println("Error: Input file must be specified")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	// Determine file extension and proceed accordingly
-	if strings.HasSuffix(*inputFile, ".properties") {
+	if isPropertiesFile(*inputFile) {
 		properties, err := readProperties(*inputFile)
 		if err != nil {
 			fmt.Printf("Error reading properties file %s: %v\n", *inputFile, err)
@@ -37,6 +38,10 @@ func main() {
 
 		nestedMap := createNestedMap(properties)
 
+		if *outputFile == "" {
+			*outputFile = strings.Replace(*inputFile, ".properties", ".yml", 1)
+		}
+
 		if err := writeYAMLWithSpaces(nestedMap, *outputFile); err != nil {
 			fmt.Printf("Error writing YAML file %s: %v\n", *outputFile, err)
 			os.Exit(1)
@@ -44,11 +49,20 @@ func main() {
 
 		fmt.Printf("Conversion complete: %s -> %s\n", *inputFile, *outputFile)
 
-	} else if strings.HasSuffix(*inputFile, ".yml") || strings.HasSuffix(*inputFile, ".yaml") {
+	} else if isYAMLFile(*inputFile) {
+
 		nestedMap, err := readYAML(*inputFile)
 		if err != nil {
 			fmt.Printf("Error reading YAML file %s: %v\n", *inputFile, err)
 			os.Exit(1)
+		}
+
+		if *outputFile != "" || !strings.HasSuffix(*inputFile, ".yml") {
+			if strings.HasSuffix(*inputFile, ".yaml") && *outputFile == "" {
+				*outputFile = strings.Replace(*inputFile, ".yaml", ".properties", 1)
+			}
+		} else {
+			*outputFile = strings.Replace(*inputFile, ".yml", ".properties", 1)
 		}
 
 		properties := flattenYAML(nestedMap)
@@ -211,4 +225,12 @@ func writeProperties(properties map[string]string, filename string) error {
 	}
 
 	return writer.Flush()
+}
+
+func isPropertiesFile(input string) bool {
+	return strings.HasSuffix(input, ".properties")
+}
+
+func isYAMLFile(input string) bool {
+	return strings.HasSuffix(input, ".yaml") || strings.HasSuffix(input, ".yml")
 }
