@@ -86,7 +86,12 @@ func readProperties(filename string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic("Error closing file: " + err.Error())
+		}
+	}(file)
 
 	properties := make(map[string]string)
 	scanner := bufio.NewScanner(file)
@@ -142,10 +147,20 @@ func writeYAMLWithSpaces(data map[string]interface{}, filename string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic("Error closing file: " + err.Error())
+		}
+	}(file)
 
 	encoder := yaml.NewEncoder(file)
-	defer encoder.Close()
+	defer func(encoder *yaml.Encoder) {
+		err := encoder.Close()
+		if err != nil {
+			panic("Error closing file: " + err.Error())
+		}
+	}(encoder)
 
 	encoder.SetIndent(2)
 
@@ -161,7 +176,12 @@ func readYAML(filename string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic("Error closing file: " + err.Error())
+		}
+	}(file)
 
 	var data map[string]interface{}
 	decoder := yaml.NewDecoder(file)
@@ -194,7 +214,12 @@ func writeProperties(properties map[string]string, filename string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic("Error closing file: " + err.Error())
+		}
+	}(file)
 
 	writer := bufio.NewWriter(file)
 	keys := make([]string, 0, len(properties))
