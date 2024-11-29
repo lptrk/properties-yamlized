@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -182,12 +183,31 @@ func writeProperties(properties map[string]string, filename string) error {
 	defer file.Close()
 
 	writer := bufio.NewWriter(file)
+	keys := make([]string, 0, len(properties))
+	for k := range properties {
+		keys = append(keys, k)
+	}
 
-	for key, value := range properties {
-		line := fmt.Sprintf("%s=%s\n", key, value)
-		if _, err := writer.WriteString(line); err != nil {
+	sort.Strings(keys)
+
+	var lastSection string
+	for _, key := range keys {
+		section := strings.SplitN(key, ".", 2)[0]
+
+		if section != lastSection && lastSection != "" {
+			_, err := writer.WriteString("\n")
+			if err != nil {
+				return err
+			}
+		}
+
+		line := fmt.Sprintf("%s=%s\n", key, properties[key])
+		_, err := writer.WriteString(line)
+		if err != nil {
 			return err
 		}
+
+		lastSection = section
 	}
 
 	return writer.Flush()
